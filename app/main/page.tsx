@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react"
+import Link from "next/link"
 import { ProfileSummary } from "@/components/profile-summary"
 import { TimePanel } from "@/components/time-panel"
 import { TugasPanel } from "@/components/tugas-panel"
@@ -12,16 +13,14 @@ export default function MainPage() {
       {/* Header: profile at left, logo at right */}
       {/* Use items-center so the logo vertically aligns with the profile name/avatar.
           Reduce gap and logo height so it sits visually closer to the left content. */}
-      <header className="flex items-center justify-start gap-x-4 pt-4 md:pt-0">
+            <header className="flex items-center justify-between gap-x-4 md:gap-x-6 lg:gap-x-8">
         <ProfileSummary />
-        <img
-          src="/images/logo_baru.png"
-          alt="DPMPTSP Jateng logo"
-          className="h-27 w-auto ml-auto"
-        />
+        <Link href="/main" className="ml-auto">
+          <img src="/images/logo_baru.png" alt="DPMPTSP Jateng Logo" className="h-27 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+        </Link>
       </header>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <section className="mt-6 grid gap-6">
         {/* Time panel + Presensi button (brand teal) */}
         <div style={brand}>
