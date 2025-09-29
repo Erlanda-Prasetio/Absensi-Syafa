@@ -103,7 +103,15 @@ export function PresensiPanel({ time = "" }: Props) {
       <div className="mt-5">
         <Button
           className="w-full uppercase tracking-wide"
+          disabled={!file}
           onClick={async () => {
+            if (!file) {
+              toast({
+                title: "Error",
+                description: "Silakan ambil foto selfie terlebih dahulu",
+              })
+              return
+            }
             console.log('🔄 Starting presensi save...')
             
             // Try to save a record to Supabase if available
