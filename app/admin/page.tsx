@@ -1,12 +1,10 @@
-import type { CSSProperties } from "react"
-import Link from "next/link"
+import { AdminPanel } from '@/components/admin/admin-panel'
 import { ProfileSummary } from "@/components/profile-summary"
 import { LogoutButton } from "@/components/logout-button"
-import { TimePanel } from "@/components/time-panel"
-import { TugasPanel } from "@/components/tugas-panel"
-import { AttendanceCalendar } from "@/components/attendance-calendar"
+import Link from "next/link"
+import type { CSSProperties } from "react"
 
-export default function MainPage() {
+export default function AdminPage() {
   const brand: CSSProperties = { ["--primary" as any]: "#00786F" }
 
   return (
@@ -26,18 +24,10 @@ export default function MainPage() {
 
       <div className="max-w-5xl mx-auto">
         <section className="mt-6 grid gap-6">
-        {/* Time panel + Presensi button (brand teal) */}
+        {/* Admin Panel */}
         <div style={brand}>
-          <TimePanel />
+          <AdminPanel />
         </div>
-
-        {/* Tugas panel with drag & drop and submit */}
-        <div style={brand}>
-          <TugasPanel />
-        </div>
-
-        {/* Calendar with blue selection highlighting and count */}
-        <AttendanceCalendar />
         </section>
       </div>
     </main>

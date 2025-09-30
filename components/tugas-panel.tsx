@@ -2,18 +2,50 @@
 
 import type React from "react"
 
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/auth-client"
 
 export function TugasPanel() {
   const [isDragging, setDragging] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [userProfile, setUserProfile] = useState<{
+    id: string
+    name: string 
+    university: string
+    division: string
+  } | null>(null)
   const { toast } = useToast()
   const router = useRouter()
+  const supabase = createClient()
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('id, name, university, division')
+            .eq('id', user.id)
+            .single()
+
+          if (error) throw error
+          setUserProfile(profile)
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+      }
+    }
+
+    fetchUserProfile()
+  }, [supabase])
 
   const onDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault()
@@ -68,17 +100,22 @@ export function TugasPanel() {
               return
             }
 
+            if (!userProfile) {
+              toast({
+                title: "Error",
+                description: "Data pengguna tidak tersedia. Silakan login ulang.",
+                variant: "destructive"
+              })
+              return
+            }
+
             console.log('🔄 Starting tugas submission...')
             
             try {
-              const mod = await import('@/lib/supabase')
-              const getBrowserSupabase = mod.getBrowserSupabase
-              const supabase = getBrowserSupabase()
-              
-              console.log('📡 Supabase client:', supabase ? 'Connected' : 'Not available')
+              console.log('📡 Supabase client: Connected')
               console.log('📁 File selected:', file.name)
               
-              if (supabase && file) {
+              if (file) {
                 console.log('⬆️ Starting upload...')
                 
                 // Upload file to tugas-files storage
@@ -95,8 +132,9 @@ export function TugasPanel() {
                   
                   const now = new Date()
                   const recordData = {
-                    name: 'Nama Pengguna', // TODO: Replace with actual user name
-                    university: 'Universitas Contoh', // TODO: Replace with actual university
+                    user_id: userProfile.id,
+                    name: userProfile.name,
+                    university: userProfile.university,
                     submission_time: now.toLocaleTimeString('en-GB', { hour12: false }),
                     submission_date: now.toISOString().split('T')[0],
                     file_url: publicUrl,

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/auth-client"
 
 type Props = {
   time?: string
@@ -13,9 +14,46 @@ export function PresensiPanel({ time = "" }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [userProfile, setUserProfile] = useState<{
+    id: string
+    name: string 
+    university: string
+    division: string
+  } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const router = useRouter()
+  const supabase = createClient()
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('id, name, university, division')
+            .eq('id', user.id)
+            .single()
+
+          if (error) throw error
+          setUserProfile(profile)
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+        toast({
+          title: "Error",
+          description: "Gagal memuat profil pengguna. Silakan login ulang.",
+          variant: "destructive"
+        })
+        router.push('/login')
+      }
+    }
+
+    fetchUserProfile()
+  }, [supabase, toast, router])
 
   // Determine current presensi type based on time
   const getPresensiType = () => {
@@ -177,9 +215,19 @@ export function PresensiPanel({ time = "" }: Props) {
                   const currentDate = now.toISOString().split('T')[0]
                   
                   // Build record data based on presensi type
+                  if (!userProfile) {
+                    toast({
+                      title: "Error", 
+                      description: "Data pengguna tidak tersedia. Silakan login ulang.",
+                      variant: "destructive"
+                    })
+                    return
+                  }
+
                   const recordData: any = {
-                    name: 'Nama Pengguna', // TODO: Replace with actual user name
-                    university: 'Universitas Contoh', // TODO: Replace with actual university
+                    user_id: userProfile.id,
+                    name: userProfile.name,
+                    university: userProfile.university,
                     presensi_date: currentDate,
                   }
                   
@@ -206,7 +254,7 @@ export function PresensiPanel({ time = "" }: Props) {
                       .from('presensi_records')
                       .select('id, presensi_date, name, presensi_time')
                       .eq('presensi_date', currentDate)
-                      .eq('name', recordData.name)
+                      .eq('user_id', recordData.user_id)
                       .single()
                       
                     console.log('🎯 Today\'s record search:', { existingRecord, findError })
@@ -217,7 +265,7 @@ export function PresensiPanel({ time = "" }: Props) {
                       const { data: latestRecord } = await supabase
                         .from('presensi_records')
                         .select('id, presensi_date, name, presensi_time, presensi_out')
-                        .eq('name', recordData.name)
+                        .eq('user_id', recordData.user_id)
                         .is('presensi_out', null)
                         .order('created_at', { ascending: false })
                         .limit(1)

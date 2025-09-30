@@ -3,13 +3,27 @@
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { createClient } from "@/lib/auth-client"
 
 export function TimePanel() {
   const router = useRouter()
+  const supabase = createClient()
   const [presensiTimes, setPresensiTimes] = useState<{
     masuk: string | null
     pulang: string | null
   }>({ masuk: null, pulang: null })
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // Get user ID on mount
+  useEffect(() => {
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
+    }
+    getUserId()
+  }, [supabase])
 
   // Get current presensi type and availability
   const getPresensiType = () => {
@@ -32,58 +46,54 @@ export function TimePanel() {
 
   // Fetch today's presensi times
   useEffect(() => {
+    if (!userId) return
+
     const fetchPresensiTimes = async () => {
       try {
-        const mod = await import('@/lib/supabase')
-        const getBrowserSupabase = mod.getBrowserSupabase
-        const supabase = getBrowserSupabase()
+        const today = new Date().toISOString().split('T')[0]
+        console.log('🔍 Looking for presensi records on:', today)
         
-        if (supabase) {
-          const today = new Date().toISOString().split('T')[0]
-          console.log('🔍 Looking for presensi records on:', today)
-          
-          // First, let's see all records to debug
-          const { data: allData } = await supabase
+        // First, let's see all records to debug
+        const { data: allData } = await supabase
+          .from('presensi_records')
+          .select('*')
+          .limit(5)
+        
+        console.log('📊 All recent records:', allData)
+        
+        // Then try to get today's record for the authenticated user
+        const { data, error } = await supabase
+          .from('presensi_records')
+          .select('presensi_time, presensi_out, presensi_date, name')
+          .eq('presensi_date', today)
+          .eq('user_id', userId)
+          .single()
+        
+        console.log('🎯 Today\'s record:', { data, error })
+        
+        if (data) {
+          console.log('✅ Found record with times:', data.presensi_time, data.presensi_out)
+          setPresensiTimes({
+            masuk: data.presensi_time || null,      // Check-in time
+            pulang: data.presensi_out || null       // Check-out time
+          })
+        } else {
+          console.log('❌ No record found for today, trying latest record...')
+          // If no record for today, get the most recent one for testing
+          const { data: latestData } = await supabase
             .from('presensi_records')
-            .select('*')
-            .limit(5)
-          
-          console.log('📊 All recent records:', allData)
-          
-          // Then try to get today's record
-          const { data, error } = await supabase
-            .from('presensi_records')
-            .select('presensi_time, presensi_out, presensi_date, name')
-            .eq('presensi_date', today)
-            .eq('name', 'Nama Pengguna') // TODO: Use actual user name
+            .select('presensi_time, presensi_out')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .single()
           
-          console.log('🎯 Today\'s record:', { data, error })
-          
-          if (data) {
-            console.log('✅ Found record with times:', data.presensi_time, data.presensi_out)
+          if (latestData) {
+            console.log('📅 Using latest record:', latestData)
             setPresensiTimes({
-              masuk: data.presensi_time || null,      // Check-in time
-              pulang: data.presensi_out || null       // Check-out time
+              masuk: latestData.presensi_time || null,
+              pulang: latestData.presensi_out || null
             })
-          } else {
-            console.log('❌ No record found for today, trying latest record...')
-            // If no record for today, get the most recent one for testing
-            const { data: latestData } = await supabase
-              .from('presensi_records')
-              .select('presensi_time, presensi_out')
-              .eq('name', 'Nama Pengguna')
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single()
-            
-            if (latestData) {
-              console.log('📅 Using latest record:', latestData)
-              setPresensiTimes({
-                masuk: latestData.presensi_time || null,
-                pulang: latestData.presensi_out || null
-              })
-            }
           }
         }
       } catch (err) {
@@ -92,7 +102,7 @@ export function TimePanel() {
     }
     
     fetchPresensiTimes()
-  }, [])
+  }, [userId, supabase])
 
   function nowHHMM() {
     const d = new Date()
