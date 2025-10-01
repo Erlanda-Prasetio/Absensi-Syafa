@@ -39,6 +39,8 @@ interface UserProfile {
   division: string
   role: 'user' | 'admin'
   is_active: boolean
+  start_date?: string
+  end_date?: string
   created_at: string
   updated_at: string
 }
@@ -50,6 +52,8 @@ interface CreateUserData {
   university: string
   division: string
   role: 'user' | 'admin'
+  start_date?: string
+  end_date?: string
 }
 
 export function AdminPanel() {
@@ -58,6 +62,8 @@ export function AdminPanel() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [showEditPassword, setShowEditPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
   const { toast } = useToast()
   const supabase = createClient()
 
@@ -67,7 +73,9 @@ export function AdminPanel() {
     name: '',
     university: '',
     division: '',
-    role: 'user'
+    role: 'user',
+    start_date: '',
+    end_date: ''
   })
 
   const [editForm, setEditForm] = useState<Partial<UserProfile>>({})
@@ -156,7 +164,9 @@ export function AdminPanel() {
         name: '',
         university: '',
         division: '',
-        role: 'user'
+        role: 'user',
+        start_date: '',
+        end_date: ''
       })
       setIsCreateDialogOpen(false)
       
@@ -182,6 +192,7 @@ export function AdminPanel() {
     if (!editingUser) return
 
     try {
+      // Update profile data
       const { error } = await supabase
         .from('user_profiles')
         .update({
@@ -192,19 +203,47 @@ export function AdminPanel() {
 
       if (error) throw error
 
+      // If password change requested, call admin API
+      if (newPassword) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
+
+        if (!accessToken) {
+          throw new Error('Sesi tidak valid')
+        }
+
+        const response = await fetch('/api/admin/change-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            user_id: editingUser.id,
+            new_password: newPassword
+          })
+        })
+
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}))
+          throw new Error(errorBody?.error || 'Gagal mengubah password')
+        }
+      }
+
       toast({
         title: 'Berhasil',
-        description: 'Data pengguna berhasil diperbarui'
+        description: newPassword ? 'Data pengguna dan password berhasil diperbarui' : 'Data pengguna berhasil diperbarui'
       })
 
       setEditingUser(null)
       setEditForm({})
+      setNewPassword('')
       await fetchUsers()
 
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: 'Gagal memperbarui data pengguna',
+        description: error?.message || 'Gagal memperbarui data pengguna',
         variant: 'destructive'
       })
     }
@@ -255,7 +294,9 @@ export function AdminPanel() {
       name: user.name,
       university: user.university,
       division: user.division,
-      role: user.role
+      role: user.role,
+      start_date: user.start_date || '',
+      end_date: user.end_date || ''
     })
   }
 
@@ -423,6 +464,27 @@ export function AdminPanel() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create-start-date">Tanggal Mulai Magang</Label>
+                  <Input
+                    id="create-start-date"
+                    type="date"
+                    value={createForm.start_date}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create-end-date">Tanggal Selesai Magang</Label>
+                  <Input
+                    id="create-end-date"
+                    type="date"
+                    value={createForm.end_date}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, end_date: e.target.value }))}
+                    min={createForm.start_date}
+                  />
                 </div>
               </div>
 
@@ -711,6 +773,49 @@ export function AdminPanel() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-start-date">Tanggal Mulai Magang</Label>
+                  <Input
+                    id="edit-start-date"
+                    type="date"
+                    value={editForm.start_date || ''}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-end-date">Tanggal Selesai Magang</Label>
+                  <Input
+                    id="edit-end-date"
+                    type="date"
+                    value={editForm.end_date || ''}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
+                    min={editForm.start_date}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-password">Ubah Password (opsional)</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-password"
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Kosongkan jika tidak ingin mengubah"
+                      className="pr-24"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs font-medium text-[#00786F] hover:text-[#005B54]"
+                    >
+                      {showEditPassword ? 'Sembunyikan' : 'Tampilkan'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Minimal 6 karakter</p>
                 </div>
               </div>
 
