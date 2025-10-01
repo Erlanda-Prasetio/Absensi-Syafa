@@ -107,9 +107,9 @@ export function LoginForm() {
           <Shield className="h-8 w-8 text-[#00786F] mr-2" />
           <h1 className="text-2xl font-bold text-gray-900">Login</h1>
         </div>
-        <p className="text-gray-600 text-sm">
+        {/* <p className="text-gray-600 text-sm">
           Masuk ke sistem presensi DPMPTSP Jawa Tengah
-        </p>
+        </p> */}
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
@@ -173,7 +173,7 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <div className="mt-6 pt-4 border-t border-gray-200">
+      {/* <div className="mt-6 pt-4 border-t border-gray-200">
         <div className="text-center">
           <p className="text-xs text-gray-500 mb-2">
             Sistem keamanan dilindungi dengan enkripsi end-to-end
@@ -183,7 +183,7 @@ export function LoginForm() {
             <span>Akses terkontrol | Admin dikelola</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Admin info */}
       <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">

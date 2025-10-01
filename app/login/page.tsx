@@ -16,17 +16,17 @@ export default function LoginPage() {
             <img 
               src="/images/logo_baru.png" 
               alt="DPMPTSP Jateng Logo" 
-              className="h-32 w-auto mx-auto mb-8"
+              className="h-54 w-auto mx-auto mb-8"
             />
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Sistem Presensi Digital
+              Presensi Magang DPMPTSP 
             </h1>
             <h2 className="text-xl font-semibold text-[#00786F] mb-4 uppercase tracking-wider">
               PROVINSI JAWA TENGAH
             </h2>
-            <p className="text-lg text-gray-600 max-w-md mx-auto">
+            {/* <p className="text-lg text-gray-600 max-w-md mx-auto">
               Platform presensi digital yang aman dengan kontrol akses administrator
-            </p>
+            </p> */}
           </div>
         </div>
 
