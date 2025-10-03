@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react"
 import Link from "next/link"
 import { ProfileSummary } from "@/components/profile-summary"
-import { LogoutButton } from "@/components/logout-button"
+// import { LogoutButton } from "@/components/logout-button"
 import { TimePanel } from "@/components/time-panel"
 import { TugasPanel } from "@/components/tugas-panel"
 import { AttendanceCalendar } from "@/components/attendance-calendar"
@@ -17,7 +17,7 @@ export default function MainPage() {
             <header className="flex items-center justify-between gap-x-4 md:gap-x-6 lg:gap-x-8">
         <ProfileSummary />
         <div className="flex items-center gap-4">
-          <LogoutButton />
+          {/* <LogoutButton /> */}
           <Link href="/main">
             <img src="/images/logo_baru.png" alt="DPMPTSP Jateng Logo" className="h-27 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
           </Link>

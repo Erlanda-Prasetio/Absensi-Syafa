@@ -61,22 +61,28 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Public routes that don't require authentication
-  if (pathname === '/login' || pathname === '/register' || pathname === '/auth-test' || pathname === '/debug') {
-    // If user is already logged in and trying to access login/register, redirect to main
-    if (user && (pathname === '/login' || pathname === '/register')) {
-      return NextResponse.redirect(new URL('/main', request.url))
-    }
-    return response
+  console.log('[MIDDLEWARE] Pathname:', pathname, 'User:', user ? user.id : 'none')
+
+  // Root path handling - redirect to /magang landing page
+  if (pathname === '/') {
+    console.log('[MIDDLEWARE] Root path detected, redirecting to /magang')
+    return NextResponse.redirect(new URL('/magang', request.url))
   }
 
-  // Root path handling
-  if (pathname === '/') {
-    if (user) {
+  // Public routes that don't require authentication
+  const publicRoutes = ['/login', '/register', '/auth-test', '/debug', '/magang', '/laporan']
+  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/magang/')
+  
+  console.log('[MIDDLEWARE] Is public route?', isPublicRoute)
+  
+  if (isPublicRoute) {
+    // If user is already logged in and trying to access login/register, redirect to main
+    if (user && (pathname === '/login' || pathname === '/register')) {
+      console.log('[MIDDLEWARE] Logged in user accessing login/register, redirecting to /main')
       return NextResponse.redirect(new URL('/main', request.url))
-    } else {
-      return NextResponse.redirect(new URL('/login', request.url))
     }
+    console.log('[MIDDLEWARE] Public route, allowing access')
+    return response
   }
 
   // Protected routes that require authentication
@@ -104,6 +110,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // Default: allow access to any other routes
   return response
 }
 
