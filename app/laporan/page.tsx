@@ -31,6 +31,33 @@ export default function LaporanPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Calculate end date based on start date and duration
+  const calculateEndDate = (startDate: string, duration: string) => {
+    if (!startDate || !duration) return ""
+    
+    const start = new Date(startDate)
+    const durationMap: { [key: string]: number } = {
+      "1-bulan": 1,
+      "2-bulan": 2,
+      "3-bulan": 3,
+      "6-bulan": 6,
+    }
+    
+    const months = durationMap[duration] || 0
+    if (months === 0) return ""
+    
+    // Add months to the start date
+    const endDate = new Date(start)
+    endDate.setMonth(endDate.getMonth() + months)
+    
+    // Format as YYYY-MM-DD for input[type="date"]
+    const year = endDate.getFullYear()
+    const month = String(endDate.getMonth() + 1).padStart(2, '0')
+    const day = String(endDate.getDate()).padStart(2, '0')
+    
+    return `${year}-${month}-${day}`
+  }
+
   // Handle file selection
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return
@@ -297,7 +324,16 @@ export default function LaporanPage() {
                 <Label htmlFor="durasi_magang" className="text-base font-medium mb-3 block">Durasi Magang</Label>
                 <Select
                   value={formData.durasi_magang}
-                  onValueChange={(value) => setFormData({ ...formData, durasi_magang: value })}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, durasi_magang: value })
+                    // Auto-calculate end date if start date is already set
+                    if (formData.tanggal_mulai) {
+                      const calculatedEndDate = calculateEndDate(formData.tanggal_mulai, value)
+                      if (calculatedEndDate) {
+                        setFormData(prev => ({ ...prev, durasi_magang: value, tanggal_selesai: calculatedEndDate }))
+                      }
+                    }
+                  }}
                 >
                   <SelectTrigger className="h-12">
                     <SelectValue placeholder="Pilih durasi" />
@@ -318,7 +354,17 @@ export default function LaporanPage() {
                     id="tanggal_mulai"
                     type="date"
                     value={formData.tanggal_mulai}
-                    onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.target.value })}
+                    onChange={(e) => {
+                      const newStartDate = e.target.value
+                      setFormData({ ...formData, tanggal_mulai: newStartDate })
+                      // Auto-calculate end date if duration is already selected
+                      if (formData.durasi_magang) {
+                        const calculatedEndDate = calculateEndDate(newStartDate, formData.durasi_magang)
+                        if (calculatedEndDate) {
+                          setFormData(prev => ({ ...prev, tanggal_mulai: newStartDate, tanggal_selesai: calculatedEndDate }))
+                        }
+                      }
+                    }}
                     className="h-12"
                   />
                 </div>
@@ -332,6 +378,9 @@ export default function LaporanPage() {
                     onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.target.value })}
                     className="h-12"
                   />
+                  {/* <p className="text-xs text-gray-500 mt-2">
+                    Tanggal selesai dihitung otomatis, namun dapat disesuaikan manual
+                  </p> */}
                 </div>
               </div>
 
