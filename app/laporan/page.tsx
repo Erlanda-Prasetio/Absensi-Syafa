@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ export default function LaporanPage() {
     jurusan: "",
     semester: "",
     durasi_magang: "",
+    division_id: "",
     tanggal_mulai: "",
     tanggal_selesai: "",
     deskripsi: "",
@@ -29,7 +30,24 @@ export default function LaporanPage() {
 
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [divisions, setDivisions] = useState<any[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch divisions on mount
+  useEffect(() => {
+    const fetchDivisions = async () => {
+      try {
+        const response = await fetch('/api/admin/divisions')
+        const result = await response.json()
+        if (result.success) {
+          setDivisions(result.data || [])
+        }
+      } catch (error) {
+        console.error('Error fetching divisions:', error)
+      }
+    }
+    fetchDivisions()
+  }, [])
 
   // Calculate end date based on start date and duration
   const calculateEndDate = (startDate: string, duration: string) => {
@@ -126,32 +144,71 @@ export default function LaporanPage() {
       console.log('Form Data:', formData)
       console.log('Selected Files:', selectedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })))
       
-      // Send confirmation email
-      const emailResponse = await fetch('/api/send-confirmation', {
+      // Create FormData for submission
+      const submitFormData = new FormData()
+      
+      // Append all form fields
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          submitFormData.append(key, String(value))
+        }
+      })
+      
+      // Append files
+      selectedFiles.forEach((file) => {
+        submitFormData.append('bukti[]', file, file.name)
+      })
+      
+      // Submit to magang API
+      const response = await fetch('/api/magang', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to_email: formData.email,
-          nama_lengkap: formData.nama_lengkap
-        })
+        body: submitFormData,
       })
 
-      const emailResult = await emailResponse.json()
+      const result = await response.json()
 
-      if (emailResponse.ok && emailResult.success) {
-        toast.success("Pendaftaran Berhasil!", {
-          description: "Email konfirmasi telah dikirim. Periksa inbox Anda.",
-          duration: 6000,
+      if (response.ok && result.success) {
+        // Show immediate success notification
+        toast.success("Pendaftaran Anda Telah Tercatat!", {
+          description: `Kode Pendaftaran: ${result.data.kode_pendaftaran}. Email konfirmasi akan segera dikirim.`,
+          duration: 8000,
         })
+
+        // Wait 3 seconds before sending confirmation email
+        setTimeout(async () => {
+          try {
+            const emailResponse = await fetch('/api/send-confirmation', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to_email: formData.email,
+                nama_lengkap: formData.nama_lengkap
+              })
+            })
+
+            if (emailResponse.ok) {
+              toast.success("Email Konfirmasi Terkirim!", {
+                description: "Silakan cek email Anda untuk detail pendaftaran.",
+                duration: 6000,
+              })
+            }
+          } catch (emailError) {
+            console.error('Email sending failed:', emailError)
+            toast.warning("Email Konfirmasi Tertunda", {
+              description: "Pendaftaran berhasil, namun email akan dikirim kemudian.",
+              duration: 5000,
+            })
+          }
+        }, 3000) // 3 second delay
       } else {
-        // Show success even if email fails, but with different message
-        toast.success("Pendaftaran Berhasil!", {
-          description: "Kami telah menerima pendaftaran Anda. Email konfirmasi mungkin tertunda.",
+        toast.error("Pendaftaran Gagal", {
+          description: result.error || "Terjadi kesalahan saat memproses pendaftaran",
           duration: 6000,
         })
-        console.error('Failed to send email:', emailResult.error || emailResult.message)
+        console.error('Submission failed:', result)
+        return
       }
       
       // Reset form
@@ -163,6 +220,7 @@ export default function LaporanPage() {
         jurusan: "",
         semester: "",
         durasi_magang: "",
+        division_id: "",
         tanggal_mulai: "",
         tanggal_selesai: "",
         deskripsi: "",
@@ -343,6 +401,39 @@ export default function LaporanPage() {
                     <SelectItem value="2-bulan">2 Bulan</SelectItem>
                     <SelectItem value="3-bulan">3 Bulan</SelectItem>
                     <SelectItem value="6-bulan">6 Bulan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="division_id" className="text-base font-medium mb-3 block">Divisi yang Diminati *</Label>
+                <Select
+                  value={formData.division_id}
+                  onValueChange={(value) => setFormData({ ...formData, division_id: value })}
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder="Pilih divisi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {divisions.length === 0 ? (
+                      <SelectItem value="loading" disabled>Loading divisi...</SelectItem>
+                    ) : (
+                      divisions.map((division) => {
+                        const availableSlots = division.available_slots ?? division.total_slots ?? 0
+                        const isFull = availableSlots <= 0
+                        return (
+                          <SelectItem 
+                            key={division.id} 
+                            value={String(division.id)}
+                            disabled={isFull}
+                            className={isFull ? 'opacity-50 cursor-not-allowed' : ''}
+                          >
+                            {division.nama_divisi} ({availableSlots} slot tersedia)
+                            {isFull && ' - PENUH'}
+                          </SelectItem>
+                        )
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               </div>

@@ -8,18 +8,40 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { FileText, AlertTriangle, Shield, Search,  ArrowRight } from "lucide-react"
+import { FileText, AlertTriangle, Shield, Search, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner";
 
 
 export default function HomePage() {
   const [trackingNumber, setTrackingNumber] = useState("")
   const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [divisions, setDivisions] = useState<any[]>([])
+  const [currentDivisionIndex, setCurrentDivisionIndex] = useState(0)
   const [stats, setStats] = useState({
     korupsi: 0,
     gratifikasi: 0,
     'benturan-kepentingan': 0,
   })
+
+  // Fetch divisions from API
+  useEffect(() => {
+    const fetchDivisions = async () => {
+      try {
+        const response = await fetch('/api/admin/divisions')
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          // Only show active divisions
+          const activeDivisions = result.data.filter((div: any) => div.is_active)
+          setDivisions(activeDivisions)
+        }
+      } catch (error) {
+        console.error("Error fetching divisions:", error)
+      }
+    }
+
+    fetchDivisions()
+  }, [])
 
   // Fetch real statistics from API
   useEffect(() => {
@@ -116,35 +138,42 @@ export default function HomePage() {
     }
   }
 
-  const reportCategories = [
-    {
-      title: "Korupsi",
-      description:
-        "Laporkan tindakan korupsi yang merugikan negara dan masyarakat. Termasuk penyalahgunaan wewenang, suap, dan penggelapan dana publik.",
-      icon: AlertTriangle,
-      color: "bg-red-500",
-      count: stats.korupsi,
-      image: "/images/korupsi.jpg",
-    },
-    {
-      title: "Gratifikasi",
-      description:
-        "Laporkan pemberian atau penerimaan hadiah, fasilitas, atau keuntungan lain yang dapat mempengaruhi keputusan pejabat.",
-      icon: FileText,
-      color: "bg-orange-500",
-      count: stats.gratifikasi,
-      image: "/images/gratifikasi.jpg",
-    },
-    {
-      title: "Benturan Kepentingan",
-      description:
-        "Laporkan situasi dimana kepentingan pribadi bertentangan dengan kepentingan publik dalam pengambilan keputusan.",
-      icon: Shield,
-      color: "bg-yellow-500",
-      count: stats['benturan-kepentingan'],
-      image: "/images/benturan-kepentingan.jpg",
-    },
-  ]
+  // Carousel navigation functions
+  const handlePrevious = () => {
+    setCurrentDivisionIndex((prevIndex) => 
+      prevIndex === 0 ? divisions.length - 1 : prevIndex - 1
+    )
+  }
+
+  const handleNext = () => {
+    setCurrentDivisionIndex((prevIndex) => 
+      prevIndex === divisions.length - 1 ? 0 : prevIndex + 1
+    )
+  }
+
+  // Map divisions to display format with icons
+  const getIconForDivision = (index: number) => {
+    const icons = [
+      { Icon: FileText, color: "text-blue-500", bgColor: "bg-blue-50" },
+      { Icon: AlertTriangle, color: "text-green-500", bgColor: "bg-green-50" },
+      { Icon: Shield, color: "text-purple-500", bgColor: "bg-purple-50" },
+    ]
+    return icons[index % icons.length]
+  }
+
+  const reportCategories = divisions.map((division, index) => {
+    const iconInfo = getIconForDivision(index)
+    return {
+      id: division.id,
+      title: division.nama_divisi,
+      description: division.description || "Program magang untuk pengembangan kompetensi profesional",
+      icon: iconInfo.Icon,
+      color: iconInfo.color,
+      bgColor: iconInfo.bgColor,
+      availableSlots: division.available_slots,
+      totalSlots: division.total_slots,
+    }
+  })
 
   useEffect(() => {
     const parseKodeFromUrl = (): string | null => {
@@ -280,55 +309,97 @@ export default function HomePage() {
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-gray-800 mb-4">Kategori Pelaporan</h3>
+            <h3 className="text-3xl font-bold text-gray-800 mb-4">Divisi Magang Tersedia</h3>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Pilih kategori pelanggaran yang ingin Anda laporkan. Setiap laporan akan ditangani dengan serius dan
-              profesional.
+              Pilih divisi magang yang sesuai dengan minat dan bidang studi Anda. Setiap divisi memiliki kuota terbatas yang dikelola oleh admin.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {reportCategories.map((category, index) => {
-              const IconComponent = category.icon
-              return (
-                <Card
-                  key={index}
-                  className="overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full p-0"
-                >
-                  <div 
-                    className="relative aspect-[4/3] bg-cover bg-center bg-no-repeat w-full"
-                    style={{ 
-                      backgroundImage: `url(${category.image || "/placeholder.svg"})`,
-                      margin: 0,
-                      padding: 0,
-                      border: 'none'
-                    }}
+          {divisions.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Memuat data divisi...</p>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Navigation Arrows */}
+              {divisions.length > 3 && (
+                <>
+                  <button
+                    onClick={handlePrevious}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white hover:bg-gray-100 rounded-full p-3 shadow-lg transition-all duration-200 hover:scale-110 border border-gray-200"
+                    aria-label="Previous division"
                   >
-                    <div
-                      className={`absolute top-4 right-4 ${category.color} text-white px-3 py-1 rounded-full text-sm font-semibold`}
-                    >
-                      {category.count.toLocaleString()} Laporan
-                    </div>
-                  </div>
-                  <CardContent className="p-6 flex flex-col h-full">
-                    <div className="flex items-center mb-4">
-                      <div className={`${category.color} p-2 rounded-lg mr-3`}>
-                        <IconComponent className="h-6 w-6 text-white" />
+                    <ChevronLeft className="h-6 w-6 text-gray-800" />
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white hover:bg-gray-100 rounded-full p-3 shadow-lg transition-all duration-200 hover:scale-110 border border-gray-200"
+                    aria-label="Next division"
+                  >
+                    <ChevronRight className="h-6 w-6 text-gray-800" />
+                  </button>
+                </>
+              )}
+
+              {/* Carousel Container */}
+              <div className="overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{ 
+                    transform: `translateX(-${currentDivisionIndex * (100 / 3)}%)` 
+                  }}
+                >
+                  {reportCategories.map((category, index) => {
+                    const IconComponent = category.icon
+                    return (
+                      <div 
+                        key={category.id} 
+                        className="w-1/3 flex-shrink-0 px-4"
+                      >
+                        <Card
+                          className="overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full"
+                        >
+                          <CardContent className="p-6 flex flex-col h-full">
+                            <div className="flex items-center mb-4">
+                              <div className={`${category.bgColor} p-3 rounded-lg mr-3`}>
+                                <IconComponent className={`h-6 w-6 ${category.color}`} />
+                              </div>
+                              <h4 className="text-xl font-bold text-gray-800">{category.title}</h4>
+                            </div>
+                            <p className="text-gray-600 mb-6 leading-relaxed flex-grow">{category.description}</p>
+                            <Button
+                              className="w-full bg-teal-600 hover:bg-teal-700 mt-auto"
+                              onClick={() => (window.location.href = "/laporan")}
+                            >
+                              Daftar Magang ({category.availableSlots}/{category.totalSlots} Tersedia)
+                            </Button>
+                          </CardContent>
+                        </Card>
                       </div>
-                      <h4 className="text-xl font-bold text-gray-800">{category.title}</h4>
-                    </div>
-                    <p className="text-gray-600 mb-6 leading-relaxed flex-grow">{category.description}</p>
-                    <Button
-                      className="w-full bg-teal-600 hover:bg-teal-700 mt-auto"
-                      onClick={() => (window.location.href = "/laporan")}
-                    >
-                      Laporkan {category.title}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Carousel Indicators */}
+              {divisions.length > 3 && (
+                <div className="flex justify-center gap-2 mt-8">
+                  {reportCategories.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentDivisionIndex(index)}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        index === currentDivisionIndex 
+                          ? 'w-8 bg-teal-600' 
+                          : 'w-2 bg-gray-300 hover:bg-gray-400'
+                      }`}
+                      aria-label={`Go to division ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
