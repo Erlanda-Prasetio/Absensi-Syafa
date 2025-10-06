@@ -220,19 +220,32 @@ export function AdminPanel() {
           'Cache-Control': 'no-cache',
         },
       })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const result = await response.json()
       
+      console.log('Raw API response:', result)
       console.log('Fetched pending registrations:', result.data?.length || 0)
+      console.log('Registration data:', result.data)
       
       if (result.success) {
         // Filter out any non-pending items (in case of database lag)
-        const actuallyPending = (result.data || []).filter((reg: any) => reg.status === 'pending')
+        const actuallyPending = (result.data || []).filter((reg: any) => {
+          console.log(`Registration ${reg.id}: status = "${reg.status}"`)
+          return reg.status === 'pending'
+        })
         console.log('After filtering:', actuallyPending.length)
+        console.log('Actually pending:', actuallyPending)
         setPendingRegistrations(actuallyPending)
       } else {
+        console.error('API returned error:', result.error)
         throw new Error(result.error)
       }
     } catch (error) {
+      console.error('Error in fetchPendingRegistrations:', error)
       toast({
         title: 'Error',
         description: 'Gagal memuat data pendaftar',
