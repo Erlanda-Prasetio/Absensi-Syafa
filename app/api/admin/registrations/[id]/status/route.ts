@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logActivity, ActivityType } from '@/lib/activity-logger'
 
 export async function POST(
   request: NextRequest,
@@ -139,6 +140,23 @@ export async function POST(
       console.error('Error sending email:', emailError)
       // Don't fail the request if email fails
     }
+
+    // Log activity
+    await logActivity({
+      user_email: registration.email,
+      user_name: registration.nama_lengkap,
+      activity_type: status === 'approved' ? ActivityType.REGISTRATION_APPROVED : ActivityType.REGISTRATION_REJECTED,
+      description: status === 'approved'
+        ? `Pendaftaran disetujui: ${registration.nama_lengkap} (${registration.kode_pendaftaran})`
+        : `Pendaftaran ditolak: ${registration.nama_lengkap} (${registration.kode_pendaftaran})`,
+      metadata: {
+        registration_id: id,
+        kode_pendaftaran: registration.kode_pendaftaran,
+        status,
+        rejection_reason: status === 'rejected' ? rejection_reason : undefined,
+        changed_by: changed_by || 'Admin',
+      },
+    })
 
     return NextResponse.json({
       success: true,

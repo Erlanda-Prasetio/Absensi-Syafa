@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase'
+import { logActivity, ActivityType } from '@/lib/activity-logger'
 
 interface CreateUserRequest {
   email?: string
@@ -113,6 +114,22 @@ export async function POST(request: NextRequest) {
     await supabase.auth.admin.deleteUser(newUser.id)
     return NextResponse.json({ error: profileInsertError.message }, { status: 500 })
   }
+
+  // Log activity
+  await logActivity({
+    user_id: parseInt(newUser.id),
+    user_email: email,
+    user_name: name,
+    activity_type: ActivityType.USER_CREATED,
+    description: `User baru dibuat: ${name} (${email})`,
+    metadata: {
+      role: userRole,
+      university,
+      division,
+      created_by: requester.user.id,
+      created_by_email: requester.user.email,
+    },
+  })
 
   return NextResponse.json({ user: newUser }, { status: 201 })
   } catch (error: any) {

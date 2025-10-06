@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { formatActivityTime, getActivityColor } from '@/lib/activity-logger'
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ export function AdminPanel() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [divisions, setDivisions] = useState<Division[]>([])
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([])
+  const [activityLogs, setActivityLogs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isCreateDivisionDialogOpen, setIsCreateDivisionDialogOpen] = useState(false)
@@ -113,8 +115,39 @@ export function AdminPanel() {
   const [showPassword, setShowPassword] = useState(false)
   const [showEditPassword, setShowEditPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all-status')
+  const [divisionFilter, setDivisionFilter] = useState('all-division')
+  
   const { toast } = useToast()
   const supabase = createClient()
+
+  // Filtered users based on search and filters
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      // Search filter - check if name or university contains search query
+      const searchLower = searchQuery.toLowerCase()
+      const matchesSearch = searchQuery === '' || 
+        user.name.toLowerCase().includes(searchLower) ||
+        user.university.toLowerCase().includes(searchLower)
+      
+      // Role filter
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter
+      
+      // Status filter
+      const matchesStatus = statusFilter === 'all-status' || 
+        (statusFilter === 'active' && user.is_active) ||
+        (statusFilter === 'inactive' && !user.is_active)
+      
+      // Division filter
+      const matchesDivision = divisionFilter === 'all-division' || user.division === divisionFilter
+      
+      return matchesSearch && matchesRole && matchesStatus && matchesDivision
+    })
+  }, [users, searchQuery, roleFilter, statusFilter, divisionFilter])
 
   const [createForm, setCreateForm] = useState<CreateUserData>({
     email: '',
@@ -208,10 +241,33 @@ export function AdminPanel() {
     }
   }
 
+  // Fetch activity logs
+  const fetchActivityLogs = async () => {
+    try {
+      const response = await fetch('/api/admin/activity-logs?limit=10')
+      const result = await response.json()
+      
+      if (result.success) {
+        setActivityLogs(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching activity logs:', error)
+    }
+  }
+
   useEffect(() => {
     fetchUsers()
     fetchDivisions()
     fetchPendingRegistrations()
+    fetchActivityLogs()
+
+    // Set up polling for real-time updates (every 10 seconds)
+    const interval = setInterval(() => {
+      fetchActivityLogs()
+      fetchPendingRegistrations()
+    }, 10000)
+
+    return () => clearInterval(interval)
   }, [])
 
   // Generate secure password
@@ -285,8 +341,9 @@ export function AdminPanel() {
       })
       setIsCreateDialogOpen(false)
       
-      // Refresh user list
+      // Refresh user list and activity logs
       await fetchUsers()
+      await fetchActivityLogs()
 
     } catch (error: any) {
       let errorMessage = error?.message || 'Gagal membuat pengguna'
@@ -610,6 +667,7 @@ export function AdminPanel() {
           description: 'User berhasil dibuat dan email konfirmasi telah dikirim dengan password.'
         })
         await fetchPendingRegistrations()
+        await fetchActivityLogs()
       } else {
         throw new Error(result.error)
       }
@@ -668,6 +726,7 @@ export function AdminPanel() {
         // Wait a moment for database to fully commit
         await new Promise(resolve => setTimeout(resolve, 500))
         await fetchPendingRegistrations()
+        await fetchActivityLogs()
       } else {
         throw new Error(result.error || 'Gagal menolak pendaftaran')
       }
@@ -1140,27 +1199,22 @@ export function AdminPanel() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Login baru dari Administrator</p>
-                  <p className="text-xs text-gray-500">2 menit yang lalu</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">User baru dibuat</p>
-                  <p className="text-xs text-gray-500">1 jam yang lalu</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
-                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Presensi massal hari ini</p>
-                  <p className="text-xs text-gray-500">3 jam yang lalu</p>
-                </div>
-              </div>
+              {activityLogs.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Belum ada aktivitas</p>
+              ) : (
+                activityLogs.map((log) => {
+                  const colors = getActivityColor(log.activity_type)
+                  return (
+                    <div key={log.id} className={`flex items-center gap-3 p-3 ${colors.bgColor} rounded-lg`}>
+                      <div className={`w-2 h-2 ${colors.dotColor} rounded-full`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{log.description}</p>
+                        <p className="text-xs text-gray-500">{formatActivityTime(log.created_at)}</p>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1197,13 +1251,36 @@ export function AdminPanel() {
             >
               Tambah Divisi Magang
             </Button>
-            <Button variant="outline" className="w-full justify-start">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover:bg-blue-600 hover:text-white transition-colors"
+              onClick={() => window.open('/api/admin/export/users', '_blank')}
+            >
               Export Data User
             </Button>
-            <Button variant="outline" className="w-full justify-start">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover:bg-indigo-600 hover:text-white transition-colors"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10)
+                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+                window.open(`/api/admin/export/attendance?start_date=${thirtyDaysAgo}&end_date=${today}`, '_blank')
+              }}
+            >
               Lihat Laporan Presensi
             </Button>
-            <Button variant="outline" className="w-full justify-start">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover:bg-purple-600 hover:text-white transition-colors"
+              onClick={() => {
+                toast({
+                  title: 'Backup Database',
+                  description: 'Silakan ikuti panduan backup di dokumentasi. File BACKUP_GUIDE.md tersedia di folder database.',
+                  duration: 8000,
+                })
+                window.open('https://supabase.com/dashboard/project/_/settings/database', '_blank')
+              }}
+            >
               Backup Database
             </Button>
           </CardContent>
@@ -1243,14 +1320,16 @@ export function AdminPanel() {
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex gap-3 w-full md:w-auto flex-wrap">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex gap-3 w-full flex-wrap">
               <Input
-                placeholder="Cari nama, email, atau universitas..."
-                className="md:w-80"
+                placeholder="Cari nama atau universitas..."
+                className="w-full sm:w-80 flex-shrink-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <Select defaultValue="all">
-                <SelectTrigger className="w-32">
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-[140px] flex-shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1259,8 +1338,8 @@ export function AdminPanel() {
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="all-status">
-                <SelectTrigger className="w-32">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px] flex-shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1269,8 +1348,8 @@ export function AdminPanel() {
                   <SelectItem value="inactive">Nonaktif</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="all-division">
-                <SelectTrigger className="w-48">
+              <Select value={divisionFilter} onValueChange={setDivisionFilter}>
+                <SelectTrigger className="w-[200px] flex-shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1283,11 +1362,27 @@ export function AdminPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
+            <div className="flex gap-2 flex-shrink-0">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  fetchUsers()
+                  fetchPendingRegistrations()
+                  fetchActivityLogs()
+                  toast({
+                    title: 'Data Diperbarui',
+                    description: 'Semua data telah dimuat ulang',
+                  })
+                }}
+              >
                 Refresh
               </Button>
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.open('/api/admin/export/users', '_blank')}
+              >
                 Export CSV
               </Button>
             </div>
@@ -1298,7 +1393,7 @@ export function AdminPanel() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Pengguna ({users.length} total)</CardTitle>
+          <CardTitle>Daftar Pengguna ({filteredUsers.length} dari {users.length} total)</CardTitle>
           <CardDescription>
             Kelola akun pengguna sistem presensi
           </CardDescription>
@@ -1317,44 +1412,52 @@ export function AdminPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.university}</TableCell>
-                  <TableCell>{user.division}</TableCell>
-                  <TableCell>
-                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                      {user.role === 'admin' ? 'Admin' : 'User'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.is_active ? 'default' : 'destructive'}>
-                      {user.is_active ? 'Aktif' : 'Nonaktif'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-600">
-                    {formatDate(user.created_at)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => startEdit(user)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant={user.is_active ? 'destructive' : 'default'}
-                        size="sm"
-                        onClick={() => handleToggleUserStatus(user.id, user.is_active)}
-                      >
-                        {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-                      </Button>
-                    </div>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.university}</TableCell>
+                    <TableCell>{user.division}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? 'Admin' : 'User'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                        {user.is_active ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {formatDate(user.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => startEdit(user)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant={user.is_active ? 'destructive' : 'default'}
+                          size="sm"
+                          onClick={() => handleToggleUserStatus(user.id, user.is_active)}
+                        >
+                          {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    {users.length === 0 ? 'Belum ada pengguna.' : 'Tidak ada pengguna yang sesuai dengan filter.'}
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
