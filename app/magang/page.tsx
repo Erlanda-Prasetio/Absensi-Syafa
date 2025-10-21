@@ -310,9 +310,21 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl font-bold text-gray-800 mb-4">Divisi Magang Tersedia</h3>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
               Pilih divisi magang yang sesuai dengan minat dan bidang studi Anda. Setiap divisi memiliki kuota terbatas yang dikelola oleh admin.
             </p>
+            {divisions.length > 0 && (
+              <div className="flex justify-center">
+                <Button
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-3 text-lg font-semibold"
+                  size="lg"
+                  disabled
+                >
+                  {divisions.reduce((sum, div) => sum + (div.available_slots || 0), 0)}/
+                  {divisions.reduce((sum, div) => sum + (div.total_slots || 0), 0)} Slot Tersedia
+                </Button>
+              </div>
+            )}
           </div>
 
           {divisions.length === 0 ? (
@@ -366,13 +378,7 @@ export default function HomePage() {
                               </div>
                               <h4 className="text-xl font-bold text-gray-800">{category.title}</h4>
                             </div>
-                            <p className="text-gray-600 mb-6 leading-relaxed flex-grow">{category.description}</p>
-                            <Button
-                              className="w-full bg-teal-600 hover:bg-teal-700 mt-auto"
-                              onClick={() => (window.location.href = "/laporan")}
-                            >
-                              Daftar Magang ({category.availableSlots}/{category.totalSlots} Tersedia)
-                            </Button>
+                            <p className="text-gray-600 leading-relaxed flex-grow">{category.description}</p>
                           </CardContent>
                         </Card>
                       </div>
